@@ -1,1 +1,1 @@
-scp -r ../MCTS-Go gpunode3:/home/tyrakowskip/MCTS-Go
+scp -r ../MCTS-Go gpunode3:/home/tyrakowskip/
