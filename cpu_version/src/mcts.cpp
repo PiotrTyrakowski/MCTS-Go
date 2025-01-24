@@ -15,7 +15,6 @@
 #include <unordered_set>
 
 #include "position.hpp"
-// #include "neighbors.hpp"
 #include "mcts.hpp"
 
 
@@ -47,20 +46,11 @@ Node* select_child(Node *node) {
 
 
 
-// typedef struct sn {
-//     int wins;
-//     int sum_n_simulations;
-// } sn;
 
 sn simulate_node(Node *node, int n_simulations) {
     sn result;
     result.wins = 0;
     result.sum_n_simulations = 0;
-
-    // Example: For each child, run 5 playouts, accumulate total
-    // If you'd rather simulate from the node itself, adjust accordingly.
-
-    // std::cout << "legalmoves" << node->children.size() << '\n';
 
     if(node->children.size() == 0)
     {
@@ -96,7 +86,6 @@ int simulate_position(Position st, int n_simulations) {
         // We'll do a fresh copy for each playout
         Position current_st = st;
         const int MAX_ROLLOUT_STEPS = NN;
-        // const int MAX_ROLLOUT_STEPS = 5;
 
         int idx = static_cast<int>(dist(rng) * PRIME);
 
@@ -106,11 +95,7 @@ int simulate_position(Position st, int n_simulations) {
             // Build a naive list of candidate moves
             std::vector<int> moves(current_st.empty_spaces.begin(), current_st.empty_spaces.end());
 
-            // if(current_st.pass_happened) {
-            //     std::cout <<"something" << '\n';
-            //     current_st.print();
-            //     std::cout <<"moves" << moves.size() << '\n';
-            // }
+         
             
             // Optionally allow a pass if the board is relatively full
             if (current_st.empty_spaces.size() < NN / 2) {
@@ -118,17 +103,7 @@ int simulate_position(Position st, int n_simulations) {
             }
 
 
-            // std::cout << "legalmoves" << moves.size() << '\n';
-
-
-            // if(current_st.pass_happened){
-            //     // 50% chance to pass
-            //     if(dist(rng) < 0.1){
-            //         current_st = play_move(current_st, NN);
-            //         break;
-            //     }
-            // }
-
+           
             // Try up to 10 random picks from 'moves' to find a legal one
             bool move_found = false;
             for (int tries = 0; tries < 10; tries++) {
@@ -159,9 +134,7 @@ int simulate_position(Position st, int n_simulations) {
         bool white_is_winner = (sc < 0.0);
 
         // Convert the final board outcome to "start_player" perspective:
-        // if start_player == BLACK and black_is_winner => 1.0
-        // if start_player == WHITE and white_is_winner => 1.0
-        // else => 0.0
+      
         if (start_player == BLACK && black_is_winner) {
             wins_for_starter++;
         }

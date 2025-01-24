@@ -1,3 +1,19 @@
+g++ main.cpp position.cpp mcts.cpp -o go_game
+
+Select mode:
+1) Human vs AI
+2) AI vs AI
+Enter choice: 2
+For Black AI:
+  MCTS Iterations: 50
+  MCTS Simulations: 5000
+For White AI:
+  MCTS Iterations: 10
+  MCTS Simulations: 3000
+=============== Move #1 ===============
+ratio 0.295013
+Black plays (3,5)
+
 Przegląd Wysokopoziomowy
 Silnik działa w następujących krokach:
 

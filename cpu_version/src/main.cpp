@@ -5,70 +5,157 @@
 #include <iostream>
 #include <vector>
 #include <array>
+#include <string>
+
+// Helper function to read a move from the human
+// Returns the flattened coordinate or NN for pass
+int get_human_move(const Position& pos) {
+    while (true) {
+        std::cout << "Enter your move as 'row col' or 'pass': ";
+        std::string input;
+        std::cin >> input;
+        if (!std::cin.good()) {
+            std::cin.clear();
+            std::cin.ignore(10000, '\n');
+            continue;
+        }
+
+        if (input == "pass") {
+            return NN; // pass move
+        } else {
+            // Attempt to parse row and column
+            try {
+                int r = std::stoi(input);
+                int c;
+                std::cin >> c;  // read second number
+                // Basic range check (assuming board is NxN)
+                if (r > 0 && r <= N && c > 0 && c <= N) {
+                    return flatten(r - 1, c - 1);
+                } else {
+                    std::cout << "Invalid row/col. Please try again.\n";
+                }
+            } catch (...) {
+                std::cout << "Invalid input. Please try again.\n";
+            }
+        }
+    }
+    // Fallback
+    return NN;
+}
 
 int main() {
+    // Prompt for mode
+    std::cout << "Select mode:\n";
+    std::cout << "1) Human vs AI\n";
+    std::cout << "2) AI vs AI\n";
+    std::cout << "Enter choice: ";
+    int mode;
+    std::cin >> mode;
 
-  
+    // Common game initialization
     Position rootPos;
     std::unique_ptr<Node> root = std::make_unique<Node>(rootPos, nullptr, -1, 0, EMPTY);
 
+    // Variables for MCTS parameters
+    int black_iters = 1, black_sims = 1;
+    int white_iters = 1, white_sims = 1;
 
-    for(int moveNumber = 1; moveNumber <= 201; moveNumber++) {
-        std::cout << "Running MCTS iteration for move #" << moveNumber << "...\n"; // Debug output
+    // Variable to indicate if there's a human and what color they play
+    bool isHumanPlaying = false;
+    int humanColor = EMPTY; // Will be set to BLACK or WHITE if in human vs AI
 
-        // Run MCTS
-        int iters = 5;
-        int n_simulations = 300;
-        
-        // MCTS_SIMULATIONS
-        for(int i=0; i<iters; i++){
-            mcts_iteration(root.get(), n_simulations);
+    // Mode 1: Human vs AI
+    if (mode == 1) {
+        isHumanPlaying = true;
+
+        // Ask which color the human will play
+        std::cout << "Choose your color (b/w): ";
+        char colorChoice;
+        std::cin >> colorChoice;
+        if (colorChoice == 'b' || colorChoice == 'B') {
+            humanColor = BLACK;
+        } else {
+            humanColor = WHITE;
         }
 
-        std::cout << root.get()->color_of_move <<" wins  " << root.get()->wins << '\n';
-        std::cout << root.get()->color_of_move << " plays " << root.get()->visits << '\n';
+        // For the AI, ask for MCTS parameters
+        std::cout << "AI MCTS - Number of iterations: ";
+        std::cin >> black_iters;  // We'll use black_iters/black_sims for whichever side is AI
+        std::cout << "AI MCTS - Number of simulations per iteration: ";
+        std::cin >> black_sims;
 
-       
-        std::cout << "MCTS iterations completed for move #" << moveNumber << "\n"; // Debug output
+        // We'll store the same parameters in black_iters/black_sims and white_iters/white_sims
+        // so that the AI uses the same iteration/simulation count, no matter which color.
+        white_iters = black_iters;
+        white_sims  = black_sims;
 
-        // Pick best move
-        int fc = best_move(root.get());
+    } 
+    // Mode 2: AI vs AI
+    else if (mode == 2) {
+        std::cout << "For Black AI:\n";
+        std::cout << "  MCTS Iterations: ";
+        std::cin >> black_iters;
+        std::cout << "  MCTS Simulations: ";
+        std::cin >> black_sims;
+
+        std::cout << "For White AI:\n";
+        std::cout << "  MCTS Iterations: ";
+        std::cin >> white_iters;
+        std::cout << "  MCTS Simulations: ";
+        std::cin >> white_sims;
+    }
+    else {
+        std::cout << "Invalid mode. Exiting.\n";
+        return 1;
+    }
+
+    // Main game loop
+    for(int moveNumber = 1; moveNumber <= 201; moveNumber++) {
+
+        std::cout << "=============== Move #" << moveNumber << " ===============\n";
+        int toMove = root->state.to_move;
+
+        // Determine if current player is human or AI
+        bool currentPlayerIsHuman = (isHumanPlaying && toMove == humanColor);
+
+        int fc;
+        if (currentPlayerIsHuman) {
+            // Human move
+            fc = get_human_move(root->state);
+        } else {
+            // AI move
+            int iters = (toMove == BLACK ? black_iters : white_iters);
+            int n_simulations = (toMove == BLACK ? black_sims : white_sims);
+
+            // We do a small loop of MCTS iterations, each running n_simulations
+            for(int i = 0; i < iters / 10 + moveNumber; i++) {
+                mcts_iteration(root.get(), n_simulations / 10);
+            }
+            fc = best_move(root.get());
+
+            std::cout << "ratio " << 1 - (root.get()->wins / root.get()->visits) << '\n';
+        }
 
         if(fc < 0) {
+            // No moves available
             std::cout << "No moves available. Game ends.\n";
             break;
         }
 
-        if(fc == NN) {
-            for(const auto& child_ptr : root->children) {
-                std::cout <<"pas  wins  " << child_ptr->wins << "\n";
-                std::cout <<"pas  plays " << child_ptr->visits << "\n";
-                std::cout <<"pas  move  " << child_ptr->move_fc << "\n\n";
-
-            }
-
-        }
         
-
         // Display chosen move
         auto rc = unflatten(fc);
-        if (fc < NN)
-        {
-            std::cout << "Move #" << moveNumber << " for "
-                    << (root->state.to_move == BLACK ? "Black" : "White")
-                    << " => (" << rc.first << "," << rc.second << ")\n";
-        }
-        else
-        {
-            std::cout << "Move #" << moveNumber << " for "
-                    << (root->state.to_move == BLACK ? "Black" : "White")
-                    << " => (pass)\n";
+        std::cout << (toMove == BLACK ? "Black" : "White");
+        if (fc < NN) {
+            std::cout << " plays (" << rc.first + 1 << "," << rc.second + 1<< ")\n";
+        } else {
+            std::cout << " plays (pass)\n";
         }
 
         // Apply the move
         Position newPos = play_move(root->state, fc);
-        // Print board
         newPos.print();
+        std::cout << "score " << final_score(newPos) << "!\n";
 
         // Create new root node
         root = std::make_unique<Node>(newPos, nullptr, -1, root->move_number + 1, root->state.to_move);
@@ -79,8 +166,10 @@ int main() {
     std::cout << "Final Score (Black - White - Komi): " << score << "\n";
     if(score > 0) {
         std::cout << "BLACK wins by " << score << "!\n";
-    } else {
+    } else if (score < 0) {
         std::cout << "WHITE wins by " << -score << "!\n";
+    } else {
+        std::cout << "It's a draw!\n";
     }
 
     return 0;
