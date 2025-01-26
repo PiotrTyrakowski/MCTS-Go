@@ -52,9 +52,14 @@ int main() {
     int mode;
     std::cin >> mode;
 
+
     // Common game initialization
     Position rootPos;
-    std::unique_ptr<Node> root = std::make_unique<Node>(rootPos, nullptr, -1, 0, EMPTY);
+
+
+    Node root = Node(rootPos, nullptr, -1, 0, EMPTY, 0);
+
+
 
     // Variables for MCTS parameters
     int black_iters = 1, black_sims = 1;
@@ -89,6 +94,8 @@ int main() {
         white_iters = black_iters;
         white_sims  = black_sims;
 
+
+
     } 
     // Mode 2: AI vs AI
     else if (mode == 2) {
@@ -113,7 +120,9 @@ int main() {
     for(int moveNumber = 1; moveNumber <= 201; moveNumber++) {
 
         std::cout << "=============== Move #" << moveNumber << " ===============\n";
-        int toMove = root->state.to_move;
+        int toMove = root.state.to_move;
+
+
 
         // Determine if current player is human or AI
         bool currentPlayerIsHuman = (isHumanPlaying && toMove == humanColor);
@@ -121,19 +130,33 @@ int main() {
         int fc;
         if (currentPlayerIsHuman) {
             // Human move
-            fc = get_human_move(root->state);
+            fc = get_human_move(root.state);
+
+
         } else {
             // AI move
             int iters = (toMove == BLACK ? black_iters : white_iters);
             int n_simulations = (toMove == BLACK ? black_sims : white_sims);
 
             // We do a small loop of MCTS iterations, each running n_simulations
-            for(int i = 0; i < iters / 10 + moveNumber; i++) {
-                mcts_iteration(root.get(), n_simulations / 10);
-            }
-            fc = best_move(root.get());
+            for(int i = 0; i < iters; i++) {
+                mcts_iteration(&root, n_simulations);
+                // for (int i = 0; i <root.legal_moves.size(); i++) {
+                //     std::cout << "visits" << root.children[i]->visits << '\n';
+                //     std::cout << "wins  " << root.children[i]->wins << '\n';
+                // }
+                // std::cout << "visits" << root.children[root.best_child_id]->visits << '\n';
+                // std::cout << "wins  " << root.children[root.best_child_id]->wins << '\n';
 
-            std::cout << "ratio " << 1 - (root.get()->wins / root.get()->visits) << '\n';
+            }
+            fc = best_move(&root);
+
+            // for (int i = 0; i <root.legal_moves.size(); i++) {
+            //     std::cout << "visits" << root.children[i]->visits << '\n';
+            //     std::cout << "wins  " << root.children[i]->wins << '\n';
+            // }
+
+            std::cout << "ratio " << 1 - (root.wins / root.visits) << '\n';
         }
 
         if(fc < 0) {
@@ -153,16 +176,16 @@ int main() {
         }
 
         // Apply the move
-        Position newPos = play_move(root->state, fc);
+        Position newPos = play_move(root.state, fc);
         newPos.print();
         std::cout << "score " << final_score(newPos) << "!\n";
 
         // Create new root node
-        root = std::make_unique<Node>(newPos, nullptr, -1, root->move_number + 1, root->state.to_move);
+        root = Node(newPos, nullptr, -1, root.move_number + 1, root.state.to_move, 0);
     }
 
     // End: compute final score
-    double score = final_score(root->state);
+    double score = final_score(root.state);
     std::cout << "Final Score (Black - White - Komi): " << score << "\n";
     if(score > 0) {
         std::cout << "BLACK wins by " << score << "!\n";

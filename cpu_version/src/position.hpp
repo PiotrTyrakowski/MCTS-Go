@@ -1,35 +1,23 @@
 #ifndef POSITION_HPP
 #define POSITION_HPP
 
+
+// #include "types.hpp"
 #include "neighbors.hpp"
-#include <algorithm>
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
 #include <iostream>
-#include <memory>
-#include <queue>
-#include <random>
-#include <string>
-#include <vector>
-#include <unordered_set>
 
-// ... existing code for swap_color inline function ...
 
-////////////////////////////////////////////////////
-// Data structure representing the game state
-// //////////////////////////////////////////////////
 
-inline int swap_color(int color);
+inline int swap_color(int color) {
+    if(color == BLACK) return WHITE;
+    if(color == WHITE) return BLACK;
+    return color;
+}
    
-
-
 
 struct Position {
     // Board array, 1D, each entry ∈ {EMPTY, BLACK, WH`ITE}
-    std::array<int, NN> board;
+    ArrayInt board = ArrayInt(NN);
     // Ko point (if any); -1 means no Ko
     int ko;
     // Next player to move
@@ -39,31 +27,26 @@ struct Position {
 
     bool is_game_over;
 
-    std::unordered_set<int> empty_spaces;
+    UnorderedSet empty_spaces;
 
     Position() : ko(-1), to_move(BLACK), pass_happened(false), is_game_over(false) {
-        board.fill(EMPTY);
         for(int i = 0; i < NN; i++) {
             empty_spaces.insert(i);
         }
     }
 
-    Position(const std::array<int, NN>& board_, int ko_, int to_move_, 
+    Position(const ArrayInt& board_, int ko_, int to_move_, 
              bool pass_happened_, bool is_game_over_)
         : board(board_), ko(ko_), to_move(to_move_), 
           pass_happened(pass_happened_), is_game_over(is_game_over_) 
     {
         // Initialize empty_spaces based on the provided board
-        empty_spaces.clear();
         for(int i = 0; i < NN; i++) {
             if(board[i] == EMPTY) {
                 empty_spaces.insert(i);
             }
         }
     }
-
-
-
 
     // Print board to stdout (for debugging)
     void print() const {
@@ -83,12 +66,11 @@ struct Position {
 };
 
 // Function declarations
-void bulk_remove_stones(Position &pos, const std::vector<int> &stones);
+void bulk_remove_stones(Position &pos, const ArrayInt &stones);
 
-std::pair<std::vector<int>, std::vector<int>> find_reached(
-    const Position &pos, int start);
+ArrayIntPair find_reached(const Position &pos, int start);
 
-std::vector<int> maybe_capture_stones(Position &pos, int fc);
+ArrayInt maybe_capture_stones(Position &pos, int fc);
 
 bool is_koish_for_next_player(const Position &pos, int maybe_ko_checker, int played_stone);
 

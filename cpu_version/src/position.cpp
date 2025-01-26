@@ -1,4 +1,3 @@
-// #include "neighbors.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -12,19 +11,26 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <iostream>
 #include "position.hpp"
+#include "constants.hpp"
+
+
+
+const ArrayInt* NEIGHBORS = build_neighbors_array();
 
 
 // Swap colors
-inline int swap_color(int color) {
-    if(color == BLACK) return WHITE;
-    if(color == WHITE) return BLACK;
-    return color;
-}
+// inline int swap_color(int color) {
+//     if(color == BLACK) return WHITE;
+//     if(color == WHITE) return BLACK;
+//     return color;
+// }
 
 // Helper: Bulk remove stones from board
-void bulk_remove_stones(Position &pos, const std::vector<int> &stones) {
-    for(int fc : stones) {
+void bulk_remove_stones(Position &pos, const ArrayInt &stones) {
+    for(int i = 0; i < stones.size(); i++) {
+        int fc = stones[i];
         pos.board[fc] = EMPTY;
         pos.empty_spaces.insert(fc);
     }
@@ -34,37 +40,37 @@ void bulk_remove_stones(Position &pos, const std::vector<int> &stones) {
 // 1. A chain: all connected stones of the same color starting from 'start'
 // 2. All points adjacent to this chain (reached points)
 // Returns: pair of vectors {chain, reached}
-std::pair<std::vector<int>, std::vector<int>> find_reached(
-    const Position &pos, int start)
+ArrayIntPair find_reached(const Position &pos, int start)
 {
     // Get the color of the starting point (BLACK, WHITE, or EMPTY)
     int color = pos.board[start];
     
     // Will store all connected stones of the same color
-    std::vector<int> chain;
-    chain.reserve(NN);  // Pre-allocate max possible size
+    ArrayInt chain;
     
     // Will store all points adjacent to the chain
-    std::vector<int> reached;
-    reached.reserve(NN);
+    ArrayInt reached;
 
     // Keep track of which points we've already processed
-    std::vector<bool> visited(NN, false);
+    bool visited[NN];
+    for(int i = 0; i<NN; i++) 
+        visited[i] = false;
+        
     visited[start] = true;
     
     // BFS queue for exploring connected stones
-    std::queue<int> frontier;
+    Queue frontier;
     frontier.push(start);
     chain.push_back(start);
 
     // Breadth-first search through connected stones
     while(!frontier.empty()){
-        int current = frontier.front();
-        frontier.pop();
+        // get first element and remove it
+        int current = frontier.pop();
         
         // Check all neighboring points
-        for(int i = 0; i < NEIGHBORS[current].count; i++){
-            int nb = NEIGHBORS[current].neighbors[i];
+        for(int i = 0; i < NEIGHBORS[current].size(); i++){
+            int nb = NEIGHBORS[current].array[i];
             if(pos.board[nb] == color && !visited[nb]){
                 // Same color and not visited: add to chain
                 visited[nb] = true;
@@ -78,20 +84,25 @@ std::pair<std::vector<int>, std::vector<int>> find_reached(
         }
     }
     
-    return {chain, reached};
+    return ArrayIntPair(chain, reached);
 }
 
 // Attempt to capture a chain if it has no liberties
 // Returns the set of captured stones (if any).
-std::vector<int> maybe_capture_stones(Position &pos, int fc) {
+ArrayInt maybe_capture_stones(Position &pos, int fc) {
     // Find all connected stones of the same color and their adjacent points
-    auto [chain, reached] = find_reached(pos, fc);
+    ArrayIntPair chain_and_reached = find_reached(pos, fc);
+    ArrayInt chain = chain_and_reached.first;
+    ArrayInt reached = chain_and_reached.second;
 
-    if (chain.size() == NN) return {};
+
+    // return empty if whole board is one color because there is no capture
+    if (chain.size() == NN) return ArrayInt();
 
     // Check if the chain has any liberties (empty adjacent points)
     bool has_liberty = false;
-    for(int r : reached) {
+    for(int i = 0; i < reached.size(); i++) {
+        int r = reached[i];
         if(pos.board[r] == EMPTY) {
             has_liberty = true;
             break;
@@ -103,7 +114,7 @@ std::vector<int> maybe_capture_stones(Position &pos, int fc) {
         bulk_remove_stones(pos, chain);
         return chain;  // Return the captured stones
     }
-    return {};  // Return empty vector if no stones were captured
+    return ArrayInt();  // Return empty vector if no stones were captured
 }
 
 // Check if fc is "ko-ish": the move just captured exactly 1 stone
@@ -120,8 +131,8 @@ bool is_koish_for_next_player(const Position &pos, int maybe_ko_checker, int pla
     int played_stone_color = pos.board[played_stone];
 
    
-    for(int i = 0; i < NEIGHBORS[played_stone].count; i++) {
-        int nb = NEIGHBORS[played_stone].neighbors[i];
+    for(int i = 0; i < NEIGHBORS[played_stone].size(); i++) {
+        int nb = NEIGHBORS[played_stone].array[i];
 
         if(pos.board[nb] == played_stone_color) {
             return false;
@@ -137,10 +148,11 @@ bool is_koish_for_next_player(const Position &pos, int maybe_ko_checker, int pla
 
 // Check if move at fc is legal (including ko, suicide)
 bool is_legal_move(const Position &pos, int fc, int color) {
+    if(pos.is_game_over) return false;
     if(fc < 0 || fc > NN) return false;
+    if(fc == NN) return true; // pass always legal
     if(pos.board[fc] != EMPTY) return false; // must be empty
     if(fc == pos.ko) return false;           // can't retake Ko immediately
-    if(fc == NN) return true; // pass always legal
 
     
     
@@ -153,8 +165,8 @@ bool is_legal_move(const Position &pos, int fc, int color) {
 
     // Need to see if we capture any neighbor groups of opposite color
     // or if the placed stone itself is captured (suicide).
-    for(int i = 0; i < NEIGHBORS[fc].count; i++){
-        int nb = NEIGHBORS[fc].neighbors[i];
+    for(int i = 0; i < NEIGHBORS[fc].size(); i++){
+        int nb = NEIGHBORS[fc].array[i];
         if(temp.board[nb] == opp_color) {
             maybe_capture_stones(temp, nb);
         }
@@ -163,11 +175,10 @@ bool is_legal_move(const Position &pos, int fc, int color) {
 
     // Also check if we are suiciding
     auto captured = maybe_capture_stones(temp, fc);
-    if(!captured.empty()) {
+    if(captured.size() > 0) {
         // It's suicide if we just captured ourselves
         return false;
     }
-    // std::cout << "bbbb " << fc << '\n';
     return true;
 }
 
@@ -194,7 +205,7 @@ Position play_move(const Position &oldPos, int fc) {
     // Clear Ko
     pos.ko = -1;
     pos.board[fc] = color;
-    pos.empty_spaces.erase(fc);  // Remove from empty spaces
+    pos.empty_spaces.remove(fc);  // Remove from empty spaces
     pos.pass_happened = false;
 
     int opp_color = swap_color(color);
@@ -202,12 +213,12 @@ Position play_move(const Position &oldPos, int fc) {
     int maybe_ko_checker = -1;
     // Capture any opponent stones adjacent
     int total_opp_captured = 0;
-    for(int i = 0; i < NEIGHBORS[fc].count; i++){
-        int nb = NEIGHBORS[fc].neighbors[i];
+    for(int i = 0; i < NEIGHBORS[fc].size(); i++){
+        int nb = NEIGHBORS[fc].array[i];
         if(pos.board[nb] == opp_color) {
-            auto captured = maybe_capture_stones(pos, nb);
-            total_opp_captured += (int)captured.size();
-            if((int)captured.size() == 1){
+            ArrayInt captured = maybe_capture_stones(pos, nb);
+            total_opp_captured += captured.size();
+            if(captured.size() == 1){
                 maybe_ko_checker = nb;
             }
         }
@@ -240,7 +251,9 @@ double final_score(const Position &pos) {
             // Suppose the first neighbor color is the candidate
             int candidate = -1;
             bool mixed = false;
-            for(int r: reached) {
+            for(int i = 0; i < reached.size(); i ++) 
+            {
+                int r = reached.array[i];
                 if(temp.board[r] == BLACK || temp.board[r] == WHITE) {
                     if(candidate < 0) candidate = temp.board[r];
                     else if(temp.board[r] != candidate) {
@@ -251,12 +264,16 @@ double final_score(const Position &pos) {
             }
             if(!mixed && candidate > 0) {
                 // fill chain with candidate
-                for(int fc : chain) {
+                for(int i = 0; i < chain.size(); i++) 
+                {
+                    int fc = chain.array[i];
                     temp.board[fc] = candidate;
                 }
             } else {
-                // fill chain with '?' => treat as neutral
-                for(int fc : chain) {
+                for(int i = 0; i < chain.size(); i++) 
+                {
+                    // fill chain with '?' => treat as neutral
+                    int fc = chain.array[i];
                     temp.board[fc] = -1;  // mark neutral
                 }
             }

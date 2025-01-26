@@ -1,21 +1,8 @@
 
-
-#include <algorithm>
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
-#include <iostream>
-#include <memory>
-#include <queue>
 #include <random>
-#include <string>
-#include <vector>
-#include <unordered_set>
+#include <ctime>
 
 #include "position.hpp"
-// #include "neighbors.hpp"
 
 
 
@@ -31,6 +18,8 @@ struct Node {
     Position state;
     // Move that led to this node (fc). For root node, move_fc = -1
     int move_fc;
+    // id of the node from parent perspective
+    int id;
     int move_number;
     int color_of_move;
     // Statistics
@@ -39,31 +28,37 @@ struct Node {
     int visits;
     double ucb_value;
 
+    double best_child_ucb_value;
+    int best_child_id;
+
+
+
     // Children
-    std::vector<std::unique_ptr<Node>> children;
-    std::vector<int> legal_moves;
+    bool expaned;
+    Node** children;
+    ArrayInt legal_moves;
     
 
 
    
-    Node(const Position &st, Node *p, int m, int move_number, int color_of_move)
-        : state(st), move_fc(m), move_number(move_number), color_of_move(color_of_move), wins(0), visits(0), ucb_value(0), parent(p)
+    Node(const Position &st, Node *p, int move_fc, int move_number, int color_of_move, int id)
+        : parent(p), state(st), move_fc(move_fc), id(id), move_number(move_number),
+          color_of_move(color_of_move), wins(0.0), visits(0), ucb_value(0.0),
+          best_child_ucb_value(-1e9), best_child_id(-1),
+          expaned(false), children(nullptr)
     {
 
-
-
         // Generate all possible moves
-        for(int fc=0; fc<NN; fc++){
+        for(int fc=0; fc<=NN; fc++){
             if(is_legal_move(state, fc, state.to_move)) {
                 legal_moves.push_back(fc);
+
                 
             }
         }
 
-        legal_moves.push_back(NN);
-
+        // alocate chldren to be size of legal_moves.size() (i want it  to be array)
         
-        // std::cout << "aaaa" << legal_moves.size() << '\n';
     }
 };
 
@@ -75,15 +70,18 @@ Node* select_child(Node *node);
 
 void expand(Node *node);
 
-typedef struct sn {
-    int wins;
-    int sum_n_simulations;
-} sn;
+// typedef struct sn {
+//     int wins;
+//     int sum_n_simulations;
+// } sn;
 
-sn simulate_node(Node *node, int n_simulations);
+// sn 
+
+void simulate_node(Node *node, int n_simulations, int* wins, int* sum_n_simulations);
 
 
-int simulate_position(Position st, int n_simulations);
+// int
+void simulate_position(Position st, int n_simulations, int* wins);
 
 void backprop(Node *node, int result, int sum_n_simulations);
 
