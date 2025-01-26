@@ -138,23 +138,11 @@ int main() {
             int iters = (toMove == BLACK ? black_iters : white_iters);
             int n_simulations = (toMove == BLACK ? black_sims : white_sims);
 
-            // We do a small loop of MCTS iterations, each running n_simulations
             for(int i = 0; i < iters; i++) {
                 mcts_iteration(&root, n_simulations);
-                // for (int i = 0; i <root.legal_moves.size(); i++) {
-                //     std::cout << "visits" << root.children[i]->visits << '\n';
-                //     std::cout << "wins  " << root.children[i]->wins << '\n';
-                // }
-                // std::cout << "visits" << root.children[root.best_child_id]->visits << '\n';
-                // std::cout << "wins  " << root.children[root.best_child_id]->wins << '\n';
-
+          
             }
             fc = best_move(&root);
-
-            // for (int i = 0; i <root.legal_moves.size(); i++) {
-            //     std::cout << "visits" << root.children[i]->visits << '\n';
-            //     std::cout << "wins  " << root.children[i]->wins << '\n';
-            // }
 
             std::cout << "ratio " << 1 - (root.wins / root.visits) << '\n';
         }

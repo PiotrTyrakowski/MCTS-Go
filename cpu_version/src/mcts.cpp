@@ -43,24 +43,10 @@ Node* select_child(Node *node) {
     }
     return best_child;
 
-    // std::cout << "best child  " << node->best_child_id << '\n'; 
-
-    // if(node->best_child_id == -1)
-    // {
-    //     node->state.print();
-    //     for(int i=0; i<node->legal_moves.size(); i++)
-    //     {
-    //         node->children[i]->state.print();
-    //     }
-    // }
-
-
-    // return node->children[node->best_child_id];
 }
 
 
 
-// TODO NAPRAWIC ABY DODWALA NAJLEPSZE DZIECKO
 
 void simulate_node(Node *node, int n_simulations, int* wins, int* sum_n_simulations) {
     *wins = 0;
@@ -137,22 +123,7 @@ void simulate_position(Position st, int n_simulations, int* wins) {
                 moves.push_back(NN);  // pass
             }
 
-            // if (current_st.pass_happened)
-            // {
-            //     // check if we should also pass;
-            //     double sc = final_score(current_st);
-            //     int color = current_st.to_move;
-
-            //     if ( (color == BLACK && sc > 0 ) || color == WHITE && sc < 0) 
-            //     {
-            //         current_st = play_move(current_st, NN);
-            //         break;
-            //     }
-            // }
-
-
            
-            // Try up to 10 random picks from 'moves' to find a legal one
             bool move_found = false;
             for (int tries = 0; tries < 10; tries++) {
                 // int idx = static_cast<int>(dist(rng) * moves.size());
@@ -208,21 +179,11 @@ void backprop(Node *node, int result, int sum_n_simulations) {
         }
         int parent_visits = parent->visits + sum_n_simulations;
 
-        // std::cout << parent_visits <<"heh e parent visit " << '\n';
-        // std::cout << node->visits <<"node->visits " << '\n';
-        // std::cout << node->wins <<"node->wins " << '\n';
+ 
         double node_ucb_value = ucb_for_child(*node, parent_visits);
 
-        // std::cout << node_ucb_value <<  "node ucb " << '\n';
-        // std::cout << parent->best_child_ucb_value << " best hehe " << '\n';
 
 
-
-        // if (node_ucb_value > parent->best_child_ucb_value) {
-        //     std::cout << "hehe a" << '\n';
-        //     parent->best_child_id = node->id;
-        //     parent->best_child_ucb_value = node_ucb_value;
-        // }
 
 
         // ucb_for_child
@@ -251,8 +212,6 @@ void expand(Node *node) {
                                       id);
     }
 
-    // node->best_child_ucb_value = -1;
-
     node->expaned = true;
 }
 
@@ -263,15 +222,12 @@ void mcts_iteration(Node *root, int n_simulations) {
     Node *node = root;
     // If #children == #legal_moves, that node is fully expanded
 
-    // std::cout << "dupa1 " << '\n'; 
     while(true == node->expaned) {
         node = select_child(node);
     }
-    // std::cout << "dupa2 " << '\n'; 
     // 2. Expansion: expand the chosen node if possible
     expand(node);
 
-    // std::cout << "dupa3 " << '\n'; 
 
 
     int wins = 0;
@@ -280,20 +236,10 @@ void mcts_iteration(Node *root, int n_simulations) {
     // 3. Simulation: run some number of random playouts from this node
     simulate_node(node, n_simulations, &wins, &sum_n_simulations);
 
-    // std::cout << "dupa4 " << '\n'; 
-
-
-
-
-    // if(sim_result.sum_n_simulations > 0)
-    // std::cout << "du3pa" << sum_n_simulations << "\n"; // Debug output
-    // std::cout << "du4pa" << wins << "\n"; // Debug output
-
 
     // 4. Backprop: update stats up the tree
     backprop(node, wins, sum_n_simulations);
 
-    // std::cout << "dupa5 " << '\n'; 
 
 }
 

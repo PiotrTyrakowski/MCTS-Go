@@ -1,63 +1,54 @@
-#ifndef NEIGHBORS_CUH
-#define NEIGHBORS_CUH
+#ifndef NEIGHBORS_H
+#define NEIGHBORS_H
 
-#include "constants.cuh"
-#include <array>
-#include <utility>
+#include "types.cuh"
+#include "cuda_defs.hpp"
 
-
-HD constexpr int flatten(int row, int col) {
+// Flatten 2D coordinate (row, col) into 1D index
+HOSTDEV inline constexpr int flatten(int row, int col) {
     return row * N + col;
 }
 
-HD constexpr std::pair<int, int> unflatten(int idx) {
-    return { idx / N, idx % N };
+// Unflatten 1D index -> (row, col)
+HOSTDEV inline constexpr IntPair unflatten(int idx) {
+    return IntPair(idx / N, idx % N);
 }
 
-
-HD constexpr bool is_on_board(int row, int col) {
+// Check if a (row, col) is on board
+HOSTDEV inline constexpr bool is_on_board(int row, int col) {
     return (row >= 0 && row < N && col >= 0 && col < N);
 }
 
-struct NeighborList {
-    std::array<int, 4> neighbors{};  
-    int count = 0;                   
-
-    constexpr NeighborList() = default;
-
-    HD constexpr void add_neighbor(int idx) {
-        neighbors[count++] = idx;
+// Create neighbor list for a single cell
+HOSTDEV inline constexpr Array4Neighbors make_neighbor(int row, int col) {
+    Array4Neighbors list;
+    if (is_on_board(row - 1, col)) {            // Up
+        list.push_back(flatten(row - 1, col));
     }
-};
-
-constexpr NeighborList make_neighbor(int row, int col) {
-    NeighborList list;
-    if (is_on_board(row - 1, col)) {
-        list.add_neighbor(flatten(row - 1, col)); // Up
+    if (is_on_board(row + 1, col)) {            // Down
+        list.push_back(flatten(row + 1, col));
     }
-    if (is_on_board(row + 1, col)) {
-        list.add_neighbor(flatten(row + 1, col)); // Down
+    if (is_on_board(row, col - 1)) {            // Left
+        list.push_back(flatten(row, col - 1));
     }
-    if (is_on_board(row, col - 1)) {
-        list.add_neighbor(flatten(row, col - 1)); // Left
-    }
-    if (is_on_board(row, col + 1)) {
-        list.add_neighbor(flatten(row, col + 1)); // Right
+    if (is_on_board(row, col + 1)) {            // Right
+        list.push_back(flatten(row, col + 1));
     }
     return list;
 }
 
-constexpr std::array<NeighborList, NN> build_neighbors_array() {
-    std::array<NeighborList, NN> neighbors = {};
-
+// Build the entire neighbors array
+HOSTDEV inline constexpr void build_neighbors_array(Array4Neighbors* neighbors) {
     for (int row = 0; row < N; ++row) {
         for (int col = 0; col < N; ++col) {
             neighbors[flatten(row, col)] = make_neighbor(row, col);
         }
     }
-    return neighbors;
 }
 
-constexpr auto NEIGHBORS = build_neighbors_array();
+// Declare constant memory array
+__managed__ Array4Neighbors NEIGHBORS[NN];
 
-#endif
+void initialize_neighbors_constant();
+
+#endif // NEIGHBORS_H

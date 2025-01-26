@@ -1,4 +1,5 @@
-g++ main.cpp position.cpp mcts.cpp -o go_game
+
+g++ main.cpp position.cpp mcts.cpp neighbors.cpp -o go_game
 
 Select mode:
 1) Human vs AI
