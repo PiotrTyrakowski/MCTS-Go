@@ -4,7 +4,6 @@
 #include "constants.cuh"
 #include "cuda_defs.hpp"
 
-// If you still want a named max-size:
 constexpr int MAX_SIZE = NN + 1;
 
 struct IntPair {

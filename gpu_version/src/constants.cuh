@@ -21,4 +21,6 @@ constexpr double UCB_C = 1.41421;
 
 constexpr int THREADS_PER_BLOCK = 256;
 
+constexpr int SEED = 42;
+
 #endif // CONSTANTS_H

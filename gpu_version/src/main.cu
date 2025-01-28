@@ -7,7 +7,7 @@
 
 // Helper function to read a move from the human
 // Returns the flattened coordinate or NN for pass
-int get_human_move(const Position& pos) {
+int get_human_move(const Position& pos, int color, Array4Neighbors* neighbors_array) {
 
     if(pos.is_game_over == true) return -1;
 
@@ -43,6 +43,11 @@ int get_human_move(const Position& pos) {
                     if (pos.board[move] != EMPTY) {
                         std::cout << "Invalid row/col. Choose Empty cell\n";
                         continue;
+                    }
+
+                    if (is_legal_move(pos, move, color, neighbors_array) == false)
+                    {
+                        std::cout << "Illegal Move. Choose diffrent cell\n";
                     }
 
                     return move;
@@ -142,6 +147,12 @@ int main() {
         std::cout << "=============== Move #" << moveNumber << " ===============\n";
         int toMove = root.state.to_move;
 
+        if(root.state.is_game_over) {
+            // No moves available
+            std::cout << "No moves available. Game ends.\n";
+            break;
+        }
+
 
 
         // Determine if current player is human or AI
@@ -151,7 +162,7 @@ int main() {
         int best_child_id;
         if (currentPlayerIsHuman) {
             // Human move
-            fc = get_human_move(root.state);
+            fc = get_human_move(root.state, humanColor, H_neighbors);
 
 
         } else {
@@ -170,12 +181,6 @@ int main() {
             double c_w = double(root.children[best_child_id]->wins);
             double c_v = double(root.children[best_child_id]->visits);
             std::cout << "ratio " << (c_w / c_v) << '\n';
-        }
-
-        if(fc < 0) {
-            // No moves available
-            std::cout << "No moves available. Game ends.\n";
-            break;
         }
 
         

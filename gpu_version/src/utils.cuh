@@ -1,4 +1,4 @@
-unsigned int hash( unsigned int a) {
+HOSTDEV unsigned int hash( unsigned int a) {
     a = (a ^ 61) ^ (a >> 16);
     a = a + (a << 3);
     a = a ^ (a >> 4);
@@ -11,4 +11,3 @@ int PRIME_TABLE[] = {4073, 4079, 4091, 4093, 4099, 4111, 4127, 4129, 4133, 4139,
 int PRIME_TABLE_SIZE = 23;
 
 
-// int random_move()

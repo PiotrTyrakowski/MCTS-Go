@@ -1,5 +1,6 @@
 #include "position.cuh"
 #include "mcts.cuh"
+#include "utils.cuh"
 #include "cmath"
 
 #define cudaCheckError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -48,12 +49,6 @@ __global__ void simulate_node(Position* children_positions, int n_children, int*
     
     __syncthreads();  // Add synchronization here
 
-    // if(n_children == 0) {
-    //     int w = 0;
-    //     simulate_position(node->state, &w, tid, shared_neighbors);
-    //     atomicAdd(wins, w);
-    //     return;
-    // }
 
     int kid_id = tid % n_children;
 
@@ -89,10 +84,13 @@ __device__ void simulate_position(Position st, int* wins, int tid,  Array4Neighb
     // Which color began this simulation?
     int start_player = swap_color(st.to_move);
     
-    int idx = 5 + tid;
+    int idx = tid;
+
+
+    int rand_number = tid;
 
     Position current_st = st;
-    const int MAX_ROLLOUT_STEPS = NN;
+    const int MAX_ROLLOUT_STEPS = NN / 4 + current_st.empty_spaces.size();
         
     int steps = 0;
     while (!current_st.is_game_over && steps < MAX_ROLLOUT_STEPS) {
@@ -103,11 +101,14 @@ __device__ void simulate_position(Position st, int* wins, int tid,  Array4Neighb
         if (current_st.empty_spaces.size() < NN / 2) {
             moves.push_back(NN);  // pass
         }
+        
+        rand_number = hash(rand_number + SEED);
+
+        idx = (idx + rand_number) % moves.size();
 
         
         bool move_found = false;
         for (int tries = 0; tries < 10; tries++) {
-            idx = (idx + PRIME + tid) % moves.size();
             int move_fc = moves[idx];
 
             // Check legality or pass
@@ -116,6 +117,8 @@ __device__ void simulate_position(Position st, int* wins, int tid,  Array4Neighb
                 move_found = true;
                 break;
             }
+
+            idx = (idx + PRIME) % moves.size();
         }
 
         // If we still couldn't find anything, just pass:
@@ -196,6 +199,7 @@ __host__ void mcts_iteration(Node *root, int n_simulations) {
 
     int n_children = node->legal_moves.size();
     int wins = 0;
+    int sum_n_simulations = 0;
 
     if(n_children == 0)
     {
@@ -203,6 +207,7 @@ __host__ void mcts_iteration(Node *root, int n_simulations) {
         double sc = final_score(node->state, node->neighbors_array);
         int small_win = calculate_win_points(start_player, sc);
         wins = small_win * n_simulations;
+        sum_n_simulations = n_simulations;
     } 
     else {
 
@@ -252,6 +257,7 @@ __host__ void mcts_iteration(Node *root, int n_simulations) {
             node->children[i]->wins = h_wins[i];
             node->children[i]->visits = h_simulations[i];
             wins += (h_simulations[i] - h_wins[i]);
+            sum_n_simulations += h_simulations[i];
         }
 
         cudaFree(d_children_positions);
@@ -270,14 +276,13 @@ __host__ void mcts_iteration(Node *root, int n_simulations) {
 
 
     // 4. Backprop: update stats up the tree
-    backprop(node, wins, n_simulations);
+    backprop(node, wins, sum_n_simulations);
 
 
 }
 
 
 HOSTDEV int find_best_child(Node *root) {
-    int best_fc = -1;
     double best_ratio = -1.0;
     int best_id = -1;
     
@@ -289,7 +294,6 @@ HOSTDEV int find_best_child(Node *root) {
         if (ratio > best_ratio)
         {
             best_ratio = ratio;
-            best_fc = cptr->move_fc;
             best_id = id;
         }
 
