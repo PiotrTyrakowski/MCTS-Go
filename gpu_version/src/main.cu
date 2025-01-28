@@ -8,6 +8,9 @@
 // Helper function to read a move from the human
 // Returns the flattened coordinate or NN for pass
 int get_human_move(const Position& pos) {
+
+    if(pos.is_game_over == true) return -1;
+
     while (true) {
         std::cout << "Enter your move as 'row col' or 'pass': ";
         std::string input;
@@ -27,8 +30,22 @@ int get_human_move(const Position& pos) {
                 int c;
                 std::cin >> c;  // read second number
                 // Basic range check (assuming board is NxN)
+
                 if (r > 0 && r <= N && c > 0 && c <= N) {
-                    return flatten(r - 1, c - 1);
+
+                    int move = flatten(r - 1, c - 1);
+
+                    if (move == pos.ko) {
+                        std::cout << "Invalid row/col. KO!\n";
+                        continue;
+                    }
+
+                    if (pos.board[move] != EMPTY) {
+                        std::cout << "Invalid row/col. Choose Empty cell\n";
+                        continue;
+                    }
+
+                    return move;
                 } else {
                     std::cout << "Invalid row/col. Please try again.\n";
                 }
@@ -45,9 +62,9 @@ int main() {
     // Prompt for mode
     
 
-    initialize_neighbors_constant();
 
-    Array4Neighbors* H_neighbors = NEIGHBORS;
+    Array4Neighbors H_neighbors[NN];
+    build_neighbors_array(H_neighbors);
 
     std::cout << "Select mode:\n";
     std::cout << "1) Human vs AI\n";
@@ -131,6 +148,7 @@ int main() {
         bool currentPlayerIsHuman = (isHumanPlaying && toMove == humanColor);
 
         int fc;
+        int best_child_id;
         if (currentPlayerIsHuman) {
             // Human move
             fc = get_human_move(root.state);
@@ -145,9 +163,13 @@ int main() {
                 mcts_iteration(&root, n_simulations);
           
             }
-            fc = best_move(&root);
+            best_child_id = find_best_child(&root);
+            fc = root.children[best_child_id]->move_fc;
 
-            std::cout << "ratio " << 1 - (root.wins / root.visits) << '\n';
+
+            double c_w = double(root.children[best_child_id]->wins);
+            double c_v = double(root.children[best_child_id]->visits);
+            std::cout << "ratio " << (c_w / c_v) << '\n';
         }
 
         if(fc < 0) {
@@ -171,12 +193,18 @@ int main() {
         newPos.print();
         std::cout << "score " << final_score(newPos, H_neighbors) << "!\n";
 
+        int new_move_number = root.move_number + 1;
+        int node_color = root.state.to_move;
+
+
         // Create new root node
-        root = Node(newPos, nullptr, -1, root.move_number + 1, root.state.to_move, 0, H_neighbors);
+        root = Node(newPos, nullptr, -1, new_move_number, node_color, 0, H_neighbors);
     }
 
     // End: compute final score
     double score = final_score(root.state, H_neighbors);
+
+
     std::cout << "Final Score (Black - White - Komi): " << score << "\n";
     if(score > 0) {
         std::cout << "BLACK wins by " << score << "!\n";

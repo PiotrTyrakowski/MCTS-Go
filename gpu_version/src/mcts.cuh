@@ -21,7 +21,7 @@ struct Node {
     int color_of_move;
     // Statistics
 
-    double wins;
+    int wins;
     int visits;
     double ucb_value;
 
@@ -31,7 +31,7 @@ struct Node {
 
 
     // Children
-    bool expaned;
+    bool expanded;
     Node** children;
     ArrayInt legal_moves;
     Array4Neighbors* neighbors_array;
@@ -42,7 +42,7 @@ struct Node {
         : parent(p), state(st), move_fc(move_fc), id(id), move_number(move_number),
           color_of_move(color_of_move), wins(0.0), visits(0), ucb_value(0.0),
           best_child_ucb_value(-1e9), best_child_id(-1),
-          expaned(false), children(nullptr), neighbors_array(neighbors_array)
+          expanded(false), children(nullptr), neighbors_array(neighbors_array)
     {
 
         // Generate all possible moves
@@ -57,6 +57,20 @@ struct Node {
         // alocate chldren to be size of legal_moves.size() (i want it  to be array)
         
     }
+
+    HOSTDEV Node() {}
+
+
+    HOSTDEV ~Node() {
+        if (children != nullptr) {
+            for (int i = 0; i < legal_moves.size(); ++i) {
+                if (children[i] != nullptr) {
+                    delete children[i]; // Recursively delete children
+                }
+            }
+            delete[] children; // Delete the array of child pointers
+        }
+    }
 };
 
 
@@ -65,23 +79,26 @@ HOSTDEV double ucb_for_child(const Node &child, int total_visits);
 
 HOSTDEV Node* select_child(Node *node);
 
-HOSTDEV void expand(Node *node);
+void expand(Node *node);
 
 
 
-HOSTDEV void simulate_node(Node *node, int n_simulations, int* wins, int* sum_n_simulations);
+__global__ void simulate_node(Position* children_positions, int n_children, int* wins, int* simulations, Array4Neighbors* neighbors);
 
 
-// int
-HOSTDEV void simulate_position(Position st, int n_simulations, int* wins, Array4Neighbors* neighbors_array);
+HOSTDEV int calculate_win_points(int start_player, double sc);
+
+__device__ void simulate_position(Position st, int* wins, int tid,  Array4Neighbors* neighbors_array);
+
 
 HOSTDEV void backprop(Node *node, int result, int sum_n_simulations);
 
 
 
 
-HOSTDEV void mcts_iteration(Node *root, int n_interations);
+__host__ void mcts_iteration(Node *root, int n_interations);
 
 
-HOSTDEV int best_move(Node *root) ;
+// first is best move second is child id
+HOSTDEV int find_best_child(Node *root) ;
 

@@ -1,12 +1,16 @@
-
-
-
-
 #include "position.cuh"
 #include "mcts.cuh"
 #include "cmath"
 
-
+#define cudaCheckError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+    if (code != cudaSuccess) 
+    {
+        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) exit(code);
+    }
+}
 
 HOSTDEV double ucb_for_child(const Node &child, int total_visits) {
     if(child.visits == 0) {
@@ -18,7 +22,6 @@ HOSTDEV double ucb_for_child(const Node &child, int total_visits) {
     double exploration  = UCB_C * sqrt(log((double)total_visits) / (double)child.visits);
     return exploitation + exploration;
 }
-
 
 HOSTDEV Node* select_child(Node *node) {
     Node* best_child = nullptr;
@@ -32,134 +35,100 @@ HOSTDEV Node* select_child(Node *node) {
         }
     }
     return best_child;
-
 }
 
+__global__ void simulate_node(Position* children_positions, int n_children, int* wins, int* simulations, Array4Neighbors* neighbors) {
+    __shared__ Array4Neighbors* shared_neighbors; 
+    
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-
-
-HOSTDEV void simulate_node(Node *node, int n_simulations, int* wins, int* sum_n_simulations) {
-    *wins = 0;
-    *sum_n_simulations = 0;
-
-    // here we will make cuda loading
-    Array4Neighbors* neighbors_array = node->neighbors_array;
-
-    if(node->legal_moves.size() == 0)
-    {
-        int w = 0;
-        simulate_position(node->state, NN*n_simulations, &w, neighbors_array);
-        *wins += w;
-        *sum_n_simulations += NN*n_simulations;
-        return;
+    if (threadIdx.x == 0) {
+        shared_neighbors = neighbors;
     }
+    
+    __syncthreads();  // Add synchronization here
 
-    double best_child_ucb_value = -1e9;
-    int best_child_id = -1;
-    int n_legal_moves = node->legal_moves.size();
-    *sum_n_simulations = n_legal_moves * n_simulations;
+    // if(n_children == 0) {
+    //     int w = 0;
+    //     simulate_position(node->state, &w, tid, shared_neighbors);
+    //     atomicAdd(wins, w);
+    //     return;
+    // }
 
-    for (int i = 0; i < n_legal_moves; i++) {
-        // here i want to mopdify child (so maybe reference idk?)
-        Node* child = node->children[i];
-        int w = 0;
-        simulate_position(child->state, n_simulations, &w, neighbors_array);
+    int kid_id = tid % n_children;
 
-        child->visits += n_simulations;
-        child->wins += w;
-        *wins += n_simulations - w;
+    
+    int w = 0;
+    simulate_position(children_positions[kid_id], &w, tid, shared_neighbors);
 
-        double child_ucb_value = ucb_for_child(*child, *sum_n_simulations);
+    atomicAdd(&wins[kid_id], w);
+    atomicAdd(&simulations[kid_id], 1);
 
-        // std::cout << child_ucb_value << "fdsfsd\n";
-        
-
-        if(child_ucb_value > best_child_ucb_value)
-        {
-            best_child_id = i;
-            best_child_ucb_value = child_ucb_value;
-        }
-        
-    }
-
-    node->best_child_id = best_child_id;
-    node->best_child_ucb_value = best_child_ucb_value;
+    __syncthreads();
 
     return;
 }
 
 
-HOSTDEV void simulate_position(Position st, int n_simulations, int* wins, Array4Neighbors* neighbors_array) {
+
+HOSTDEV int calculate_win_points(int start_player, double sc)
+{   
+    bool black_is_winner = (sc > 0.0);
+    bool white_is_winner = (sc < 0.0);
+
+    if (start_player == BLACK && black_is_winner) {
+        return 1;
+    }
+    else if (start_player == WHITE && white_is_winner) {
+        return 1;
+    }
+    return 0;
+}
+
+__device__ void simulate_position(Position st, int* wins, int tid,  Array4Neighbors* neighbors_array) {
     // Which color began this simulation?
     int start_player = swap_color(st.to_move);
     
-    // Count how many times "start_player" ended up winning
-    int wins_for_starter = 0;
+    int idx = 5 + tid;
 
-    int idx = 5 + n_simulations;
-
-    // here will get some random move
-
-    for (int sim = 0; sim < n_simulations; sim++) {
-        // We'll do a fresh copy for each playout
-        Position current_st = st;
-        const int MAX_ROLLOUT_STEPS = NN;
+    Position current_st = st;
+    const int MAX_ROLLOUT_STEPS = NN;
         
-        // TODO: change this 
-        // int idx = 5; // i will change this leter to be random with some funciton don't worry about it.
+    int steps = 0;
+    while (!current_st.is_game_over && steps < MAX_ROLLOUT_STEPS) {
+        // Build a naive list of candidate moves
+        ArrayInt moves = current_st.empty_spaces.set; 
 
-
-
-        int steps = 0;
-        while (!current_st.is_game_over && steps < MAX_ROLLOUT_STEPS) {
-            // Build a naive list of candidate moves
-            ArrayInt moves = current_st.empty_spaces.set; 
-
-            // Optionally allow a pass if the board is relatively full
-            if (current_st.empty_spaces.size() < NN / 2) {
-                moves.push_back(NN);  // pass
-            }
-
-           
-            bool move_found = false;
-            for (int tries = 0; tries < 10; tries++) {
-                idx = (idx + PRIME) % moves.size();
-                int move_fc = moves[idx];
-
-                // Check legality or pass
-                if (move_fc == NN || is_legal_move(current_st, move_fc, current_st.to_move, neighbors_array)) {
-                    current_st = play_move(current_st, move_fc, neighbors_array);
-                    move_found = true;
-                    break;
-                }
-            }
-
-            // If we still couldn't find anything, just pass:
-            if(!move_found) {
-                current_st = play_move(current_st, NN, neighbors_array);
-            }
-
-            steps++;
+        // Optionally allow a pass if the board is relatively full
+        if (current_st.empty_spaces.size() < NN / 2) {
+            moves.push_back(NN);  // pass
         }
 
-        // Game might have ended or we hit the rollout limit
-        double sc = final_score(current_st, neighbors_array); // Black - White - Komi
-        // If sc > 0 => Black is ahead; if sc < 0 => White is ahead
-        bool black_is_winner = (sc > 0.0);
-        bool white_is_winner = (sc < 0.0);
+        
+        bool move_found = false;
+        for (int tries = 0; tries < 10; tries++) {
+            idx = (idx + PRIME + tid) % moves.size();
+            int move_fc = moves[idx];
 
-        // Convert the final board outcome to "start_player" perspective:
-      
-        if (start_player == BLACK && black_is_winner) {
-            wins_for_starter++;
+            // Check legality or pass
+            if (move_fc == NN || is_legal_move(current_st, move_fc, current_st.to_move, neighbors_array)) {
+                current_st = play_move(current_st, move_fc, neighbors_array);
+                move_found = true;
+                break;
+            }
         }
-        else if (start_player == WHITE && white_is_winner) {
-            wins_for_starter++;
-        }
-        // If we want to handle draws differently, we can do so here
 
+        // If we still couldn't find anything, just pass:
+        if(!move_found) {
+            current_st = play_move(current_st, NN, neighbors_array);
+        }
+
+        steps++;
     }
-    *wins = wins_for_starter;
+
+    double sc = final_score(current_st, neighbors_array); // Black - White - Komi
+        
+    *wins = calculate_win_points(start_player, sc);
 }
 
 HOSTDEV void backprop(Node *node, int result, int sum_n_simulations) {
@@ -189,7 +158,7 @@ HOSTDEV void backprop(Node *node, int result, int sum_n_simulations) {
     }
 }
 
-HOSTDEV void expand(Node *node) { 
+void expand(Node *node) { 
     if (node->state.is_game_over) {
         return; // no children to expand if game is over
     }
@@ -209,58 +178,124 @@ HOSTDEV void expand(Node *node) {
                                       node->neighbors_array);
     }
 
-    node->expaned = true;
+    node->expanded = true;
 }
 
 
 
-HOSTDEV void mcts_iteration(Node *root, int n_simulations) {
+__host__ void mcts_iteration(Node *root, int n_simulations) {
     // 1. Selection: descend until we reach a node that is not fully expanded
     Node *node = root;
     // If #children == #legal_moves, that node is fully expanded
 
-    while(true == node->expaned) {
+    while(true == node->expanded) {
         node = select_child(node);
     }
     // 2. Expansion: expand the chosen node if possible
     expand(node);
 
-
-
+    int n_children = node->legal_moves.size();
     int wins = 0;
-    int sum_n_simulations = 0;
 
-    // 3. Simulation: run some number of random playouts from this node
-    simulate_node(node, n_simulations, &wins, &sum_n_simulations);
+    if(n_children == 0)
+    {
+        int start_player = swap_color(node->state.to_move);
+        double sc = final_score(node->state, node->neighbors_array);
+        int small_win = calculate_win_points(start_player, sc);
+        wins = small_win * n_simulations;
+    } 
+    else {
+
+        int blocksPerGrid = (n_simulations + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+        Position* d_children_positions;
+        Position* h_children_positions = new Position[n_children];
+        
+        Array4Neighbors* d_neighbors;
+        int* d_wins;
+        int* d_simulations;
+
+        for (int i = 0; i < n_children; i++) {
+            h_children_positions[i] = node->children[i]->state;
+        }
+
+
+        cudaCheckError(cudaMalloc((void**)&d_children_positions, n_children * sizeof(Position)));
+        cudaCheckError(cudaMemcpy(d_children_positions, h_children_positions, n_children * sizeof(Position), cudaMemcpyHostToDevice));
+
+
+        cudaCheckError(cudaMalloc((void**)&d_neighbors, NN * sizeof(Array4Neighbors)));
+        cudaCheckError(cudaMemcpy(d_neighbors, node->neighbors_array, NN * sizeof(Array4Neighbors), cudaMemcpyHostToDevice));
+
+
+        cudaCheckError(cudaMalloc((void**)&d_wins, n_children * sizeof(int)));
+        cudaCheckError(cudaMalloc((void**)&d_simulations, n_children * sizeof(int)));
+
+
+
+
+
+
+        // 3. Simulation: run some number of random playouts from this node
+        simulate_node<<<blocksPerGrid, THREADS_PER_BLOCK>>>(d_children_positions, n_children, d_wins, d_simulations, d_neighbors);
+
+       
+
+        int* h_wins = new int[n_children];
+        int* h_simulations = new int[n_children];
+
+        cudaCheckError(cudaMemcpy(h_wins, d_wins, n_children * sizeof(int), cudaMemcpyDeviceToHost));
+        cudaCheckError(cudaMemcpy(h_simulations, d_simulations, n_children * sizeof(int), cudaMemcpyDeviceToHost));
+
+        for(int i = 0; i < n_children; i++)
+        {
+            node->children[i]->wins = h_wins[i];
+            node->children[i]->visits = h_simulations[i];
+            wins += (h_simulations[i] - h_wins[i]);
+        }
+
+        cudaFree(d_children_positions);
+        cudaFree(d_neighbors);
+        cudaFree(d_wins);
+        cudaFree(d_simulations);
+
+        delete[] h_children_positions;
+        delete[] h_simulations;
+        delete[] h_wins;
+    
+
+    }
+
+    
 
 
     // 4. Backprop: update stats up the tree
-    backprop(node, wins, sum_n_simulations);
+    backprop(node, wins, n_simulations);
 
 
 }
 
 
-HOSTDEV int best_move(Node *root) {
-    // We pick the move with the highest visitation count
+HOSTDEV int find_best_child(Node *root) {
     int best_fc = -1;
     double best_ratio = -1.0;
+    int best_id = -1;
     
     for(int id = 0; id <root->legal_moves.size(); id++)
     { 
         Node* cptr = root->children[id];
 
         double ratio = double(cptr->wins) / double(cptr->visits);
-        // choose the best winratio instead
         if (ratio > best_ratio)
         {
             best_ratio = ratio;
             best_fc = cptr->move_fc;
+            best_id = id;
         }
 
 
     }
-    return best_fc;
+    return best_id;
 }
 
 

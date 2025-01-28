@@ -19,4 +19,6 @@ constexpr double KOMI = 5.5;
 constexpr int MCTS_SIMULATIONS = 1000;
 constexpr double UCB_C = 1.41421;
 
+constexpr int THREADS_PER_BLOCK = 256;
+
 #endif // CONSTANTS_H

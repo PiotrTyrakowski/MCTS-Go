@@ -46,9 +46,6 @@ HOSTDEV inline constexpr void build_neighbors_array(Array4Neighbors* neighbors) 
     }
 }
 
-// Declare constant memory array
-__managed__ Array4Neighbors NEIGHBORS[NN];
 
-void initialize_neighbors_constant();
 
 #endif // NEIGHBORS_H

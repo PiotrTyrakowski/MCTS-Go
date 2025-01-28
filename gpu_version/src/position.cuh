@@ -84,6 +84,61 @@ HOSTDEV bool is_legal_move(const Position &pos, int fc, int color, Array4Neighbo
 HOSTDEV Position play_move(const Position &oldPos, int fc, Array4Neighbors* neighbors_array);
 
 
+
+// HOSTDEV Position play_move(const Position &oldPos, int fc, Array4Neighbors* neighbors_array) {
+//     Position pos = oldPos; 
+//     int color = pos.to_move;
+
+//     // Pass move
+//     if(fc == NN) {
+//         pos.to_move = swap_color(color);
+//         if(pos.pass_happened) {
+//             pos.is_game_over = true;
+//             return pos;
+//         }
+        
+//         pos.pass_happened = true;
+//         return pos;
+//     }
+
+  
+
+//     // Clear Ko
+//     pos.ko = -1;
+//     pos.board[fc] = color;
+//     pos.empty_spaces.remove(fc);  // Remove from empty spaces
+//     pos.pass_happened = false;
+
+//     int opp_color = swap_color(color);
+
+//     int maybe_ko_checker = -1;
+//     // Capture any opponent stones adjacent
+//     int total_opp_captured = 0;
+//     for(int i = 0; i < neighbors_array[fc].size(); i++){
+//         int nb = neighbors_array[fc].array[i];
+//         if(pos.board[nb] == opp_color) {
+//             ArrayInt captured = maybe_capture_stones(pos, nb, neighbors_array);
+//             total_opp_captured += captured.size();
+//             if(captured.size() == 1){
+//                 maybe_ko_checker = nb;
+//             }
+//         }
+//     }
+
+
+//     // Check for Ko: if exactly 1 stone was captured and the new stone is in a 
+//     // one-point eye shape, set Ko
+//     if(total_opp_captured == 1 && is_koish_for_next_player(pos, maybe_ko_checker, fc, neighbors_array)) {
+//         pos.ko = maybe_ko_checker; 
+//     }
+
+//     // Next player
+//     pos.to_move = opp_color;
+
+//     return pos;
+// }
+
+
 HOSTDEV double final_score(const Position &pos, Array4Neighbors* neighbors_array);
 
 #endif // POSITION_CUH
